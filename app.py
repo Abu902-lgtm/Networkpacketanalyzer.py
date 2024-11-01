@@ -1,4 +1,3 @@
-pip install streamlit scapy
 
 # Importing libraries
 import streamlit as st
