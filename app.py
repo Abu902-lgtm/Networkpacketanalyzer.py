@@ -1,4 +1,3 @@
-pip install streamlit scapy
 
 import streamlit as st
 from scapy.all import sniff, IP, TCP, UDP, Raw
