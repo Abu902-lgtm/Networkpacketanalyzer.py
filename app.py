@@ -1,74 +1,57 @@
+pip install streamlit scapy
 
-# Importing libraries
 import streamlit as st
-from scapy.all import sniff, IP, TCP, UDP, Ether
+from scapy.all import sniff, IP, TCP, UDP, Raw
+import pandas as pd
 from datetime import datetime
+import threading
 
-# Display header
-st.title("🔍 Educational Packet Sniffer")
-st.write("This packet sniffer captures network traffic on your local machine. Ensure it's used for educational purposes only.")
+# Create a DataFrame to store packet details
+packet_data = []
 
-# Sidebar controls
-num_packets = st.sidebar.slider("Number of packets to capture", min_value=1, max_value=100, value=10)
-protocol_filter = st.sidebar.selectbox("Filter by protocol", ["All", "TCP", "UDP", "ICMP"])
-start_sniffing = st.sidebar.button("Start Packet Capture")
-
-# Function to analyze packet
-def packet_analysis(packet):
-    if IP in packet:
-        ip_src = packet[IP].src
-        ip_dst = packet[IP].dst
-        protocol = packet[IP].proto
-    else:
-        ip_src = ip_dst = protocol = None
+# Function to capture and process packets
+def capture_packets(packet_count):
+    def process_packet(packet):
+        packet_info = {}
+        
+        # Capture basic IP information
+        if IP in packet:
+            packet_info["Time"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            packet_info["Source IP"] = packet[IP].src
+            packet_info["Destination IP"] = packet[IP].dst
+            packet_info["Protocol"] = "TCP" if TCP in packet else "UDP" if UDP in packet else "Other"
+            packet_info["Length"] = len(packet)
+            packet_info["Payload"] = packet[Raw].load if Raw in packet else None
+            packet_data.append(packet_info)
     
-    # Display protocol details
-    if protocol == 6:
-        protocol_name = "TCP"
-        payload = bytes(packet[TCP].payload) if TCP in packet else None
-    elif protocol == 17:
-        protocol_name = "UDP"
-        payload = bytes(packet[UDP].payload) if UDP in packet else None
-    else:
-        protocol_name = "Other"
-        payload = bytes(packet.payload)
-    
-    return {
-        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "Source IP": ip_src,
-        "Destination IP": ip_dst,
-        "Protocol": protocol_name,
-        "Payload": payload,
-    }
+    # Sniff packets
+    sniff(count=packet_count, prn=process_packet, store=False)
 
-# Packet capture and display
-if start_sniffing:
-    st.write(f"Capturing {num_packets} packets...")
+# Function to start packet capturing in a separate thread
+def start_packet_capture(packet_count):
+    packet_data.clear()  # Clear any previous data
+    capture_thread = threading.Thread(target=capture_packets, args=(packet_count,))
+    capture_thread.start()
+    capture_thread.join()
 
-    # Filter function for packet sniffing
-    def custom_filter(packet):
-        if protocol_filter == "All":
-            return True
-        elif protocol_filter == "TCP" and TCP in packet:
-            return True
-        elif protocol_filter == "UDP" and UDP in packet:
-            return True
-        elif protocol_filter == "ICMP" and IP in packet and packet[IP].proto == 1:
-            return True
-        return False
+# Streamlit UI setup
+st.title("🔍 Network Packet Sniffer")
+st.write("This tool captures network packets on your local machine. Use it strictly for educational purposes and only on networks where you have permission.")
 
-    # Start packet sniffing
-    packets = sniff(count=num_packets, lfilter=custom_filter)
+# Sidebar to select the number of packets to capture
+packet_count = st.sidebar.slider("Number of packets to capture", min_value=1, max_value=100, value=10)
+capture_button = st.sidebar.button("Start Capture")
+
+# Start packet capture
+if capture_button:
+    st.write(f"Capturing {packet_count} packets...")
+    start_packet_capture(packet_count)
     st.success("Packet capture complete!")
 
-    # Display captured packets
-    for packet in packets:
-        packet_info = packet_analysis(packet)
-        with st.expander(f"Packet from {packet_info['Source IP']} to {packet_info['Destination IP']}"):
-            st.write("Timestamp:", packet_info["Timestamp"])
-            st.write("Source IP:", packet_info["Source IP"])
-            st.write("Destination IP:", packet_info["Destination IP"])
-            st.write("Protocol:", packet_info["Protocol"])
-            st.write("Payload:", packet_info["Payload"])
-else:
-    st.write("Click 'Start Packet Capture' to begin capturing packets.")
+    # Display captured packets in a table format
+    if packet_data:
+        df = pd.DataFrame(packet_data)
+        st.subheader("Captured Packets")
+        st.dataframe(df)
+    else:
+        st.write("No packets captured.")
