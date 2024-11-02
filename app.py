@@ -1,9 +1,10 @@
-
 import streamlit as st
 from scapy.all import sniff, IP, TCP, UDP, Raw
 import pandas as pd
 from datetime import datetime
 import threading
+capture_thread = threading.Thread(target=capture_packets, args=(packet_count,))
+
 
 # Create a DataFrame to store packet details
 packet_data = []
