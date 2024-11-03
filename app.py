@@ -1,5 +1,3 @@
-pip install scapy streamlit
-
 # sniffer.py
 import streamlit as st
 from scapy.all import sniff
